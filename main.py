@@ -1,28 +1,63 @@
-import os
-import requests
-from dotenv import load_dotenv
-from bs4 import BeautifulSoup
-from IPython.display import Markdown, display
+"""
+Website summarizer using gemini instead of OpenAI.
+"""
+
 from openai import OpenAI
+from scraper import fetch_website_contents
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+MODEL = "gemini-2.5-flash-lite"
+key = os.getenv("GOOGLE_API_KEY")
+
+print(key)
+system_prompt = """
+You are a nerdy assistant that looks deep into things and tries to make everything you see easy to understand. You are like a detective which will note down all the small important details you see. You will ignore all the things which are navigation related or not very important and give out only the things that are the most important.
+"""
+
+user_prompt_prefix = """
+Here are the contents of a website.
+Provide a short summary of this website.
+If it includes news or announcements, then summarize these too.
+
+"""
 
 
-# Load environment variables in a file called .env
-
-load_dotenv(override=True)
-api_key = os.getenv('OPENAI_API_KEY')
-
-# Check the key
-
-if not api_key:
-    print("No API key was found - please head over to the troubleshooting notebook in this folder to identify & fix!")
-else:
-    print("API key found and looks good so far!")
+def messages_for(website):
+    """Create message list for the LLM."""
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt_prefix + website}
+    ]
 
 
-message = "Hello, GPT! This is my first ever message to you! Hi!"
-messages = [{"role": "user", "content": message}]
+def summarize(url):
+    """Fetch and summarize a website using gemini."""
+    gemini = OpenAI(base_url=GEMINI_BASE_URL, api_key=key)
+    website = fetch_website_contents(url)
+    response = gemini.chat.completions.create(
+        model=MODEL,
+        messages=messages_for(website)
+    )
+    return response.choices[0].message.content
 
-openAI = OpenAI(api_key=f"{api_key}")
 
-response = openAI.chat.completions.create(model="gpt-5",messages=messages)
-response.choice[0].message.content
+def main():
+    """Main entry point for testing."""
+    
+    url = input("Enter a URL to summarize: ")
+
+    if url.startswith("https://") or url.startswith("http://"):
+        print("\nFetching and summarizing...\n")
+        summary = summarize(url)
+        print(summary)
+
+    else:
+        print("Please enter a valid link")
+        main()
+
+
+main()
